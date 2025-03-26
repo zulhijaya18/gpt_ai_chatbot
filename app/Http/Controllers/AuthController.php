@@ -48,7 +48,14 @@ class AuthController extends Controller
 
     public function user()
     {
-        return response()->json(auth('api')->user());
+        $auth = $this->jwtAuth();
+
+        if ($auth['status'] !== 'success') {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // Return user data
+        return response()->json(['user' => JWTAuth::user()]);
     }
 
     protected function respondWithToken($token)
@@ -57,7 +64,7 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => JWTAuth::factory()->getTTL() * 60,
-            'user' => auth('api')->user()
+            'user' => JWTAuth::user()
         ]);
     }
 }

@@ -3,17 +3,18 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Conversation;
+use App\Models\Message;
 
 class ChatController extends Controller
 {
     public function chat(Request $request)
     {
         $prompt = $request->input('message');
+        $conversation = $request->input('conversation_id');
 
-        return response()->stream(function () use ($prompt) {
+        return response()->stream(function () use ($prompt, $conversation) {
             $client = new \GuzzleHttp\Client();
-
-            echo $prompt;
 
             try {
                 $response = $client->post('https://api.openai.com/v1/chat/completions', [
@@ -30,6 +31,14 @@ class ChatController extends Controller
                 ]);
 
                 $body = $response->getBody();
+
+                Message::create([
+                    'conversation_id' => $conversation,
+                    'content' => $prompt,
+                    'is_user' => true,
+                ]);
+
+                $message = '';
                 // Process the stream line by line
                 while (!$body->eof()) {
                     $line = trim($body->read(1024));
@@ -52,6 +61,7 @@ class ChatController extends Controller
                             $json = json_decode($data, true);
                             if (json_last_error() === JSON_ERROR_NONE && isset($json['choices'][0]['delta']['content'])) {
                                 $content = $json['choices'][0]['delta']['content'];
+                                $message .= $content;
                                 echo $content;
                                 ob_flush();
                                 flush();
@@ -59,6 +69,12 @@ class ChatController extends Controller
                         }
                     }
                 }
+                $message = trim($message);
+                Message::create([
+                    'conversation_id' => $conversation,
+                    'content' => $message,
+                    'is_user' => false,
+                ]);
             } catch (\Exception $e) {
                 echo json_encode(['error' => $e->getMessage()]);
                 ob_flush();
